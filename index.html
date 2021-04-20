@@ -1,0 +1,160 @@
+<html>
+<head>
+  <style>
+		h1 {
+			text-align: center; 
+			color: #038C9E; 
+			font-size: 28px; 
+			font-family: 'Source Sans Pro', sans-serif;
+			position: relative;
+		}
+		
+		h3 {
+			text-align: center;
+			color: #038C9E;
+			font-family: 'Source Sans Pro', sans-serif;
+			font-weight: normal;
+			margin-bottom: 10px;
+		}
+		
+		h4 {
+			text-align: center;
+			color: black;
+			font-family: 'Source Sans Pro', sans-serif;
+			font-style: italic;
+			font-weight: normal;
+			margin-bottom: 15px;
+		}
+		
+		.tooltip {
+			display: none;
+			background: white;
+			font-size: 14px;
+			padding: 4px;
+			position: absolute;
+			text-align: center;
+			vertical-align: middle;
+			height: 36px;
+			width: 220px;
+			z-index: 10;
+			border: 1px solid black;
+			border-radius: 10px;
+			font-family: 'Source Sans Pro', sans-serif;
+		}
+		
+		.cellName {
+			font-family: 'Source Sans Pro', sans-serif;
+			font-weight: bold;
+			font-size: 7px;
+		}
+		
+		.expValue {
+			font-family: 'Source Sans Pro', sans-serif;
+			font-size: 7px;
+		}
+		
+	</style>
+</head>
+<body>
+	<h1>Singapore Government Expenditure FY2021</h1>
+	<h3>Data visualization of the government expenditure for FY2021 by sector, ministry and budget type (in $ million), using an Icicle/ Partition chart</h3>
+	<h4>Hint: Hover over cells for expenditure value and percentage w.r.t parent component.</h4>
+  <div id="treemap"></div>
+	<script src="https://d3js.org/d3.v6.min.js"></script>
+	<script>
+
+	const margin = {top: 20, right: 5, bottom: 20, left: 40},
+		width = 600 - margin.left - margin.right,
+		height = 600 - margin.top - margin.bottom;
+		
+	let tooltip = d3.select("#treemap")
+		.append("div")
+			.attr("class", "tooltip")
+	
+	let svg = d3.select("#treemap")
+		.append("svg")
+			.attr("viewBox", [0, 0, width + margin.left + margin.right, height + margin.top + margin.bottom])
+			.attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+		
+	d3.json("GovtExpenditure_FY2021_OD.json").then(data => {
+	
+		let root = d3.hierarchy(data)
+			.sum(d => d.value)
+			.sort((a,b) => { return b.height - a.height || b.value - a.value; })
+		//console.log(root.descendants());
+	
+		let partitionLayout = d3.partition()
+			.size([height,width])
+			.padding(1);
+
+		partitionLayout(root);
+		
+		let colour = d3.scaleOrdinal(d3.quantize(d3.interpolateRainbow, data.children.length + 1));
+		let opacity = d3.scaleLinear()
+			.domain([0, 1, 2, 3])
+			.range([.4,.6,.8, 1])
+				
+		const cell = svg
+			.selectAll("g")
+			.data(root.descendants())
+			.join("g")
+				.attr("transform", d => `translate(${d.y0},${d.x0})`);
+			
+		cell.append("rect")
+			.attr("width", d => d.y1 - d.y0)
+			.attr("height", d => d.x1 - d.x0)
+			.attr("opacity", d => {
+				return opacity(d.height)
+			})
+			.attr("fill", d => {
+				if (!d.depth) return "#ccc";
+				while (d.depth > 1) d = d.parent;
+				return colour(d.data.name);
+			})
+			.on("mouseover", (event, d) => {
+				tooltip
+					.style("display", "inline-block")
+					.html(() => {
+						if(d.parent !== null) {
+							return d.data.name + ": " + d.value + " (" + Math.round((d.value / d.parent.value * 100) * 10)/10 + "%)";
+						} else {
+							return d.data.name + ": " + d.value;
+						}
+					})
+			})
+			.on("mousemove", (event, d) => {
+				tooltip
+					.style("left", (event.pageX - 100) + "px")
+					.style("top", (event.pageY + 20) + "px");
+			})
+			.on("mouseleave", () => {
+				tooltip
+					.style("display", "none");  
+			})
+		
+		//add text only for cells that are of certain height/thickness
+		const text = cell.filter(d => (d.x1 - d.x0) > 7).append("text")
+      .attr("x", 2)
+      .attr("y", 7);
+		
+		//add cell name (shorten "excluding")
+		text.append("tspan")
+			.attr("class", "cellName")
+      .text(d => {
+				if(d.data.name.includes("excluding")) {
+					return d.data.name.replace("excluding", "excl.");
+				} else {
+					return d.data.name
+				}
+			});
+			
+		text.append("tspan")
+			.attr("class", "expValue")
+			.text(d => "  "+d.value);
+	})
+	</script>
+
+
+
+</body>
+</html>
